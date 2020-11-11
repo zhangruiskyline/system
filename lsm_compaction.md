@@ -20,12 +20,12 @@ How to do compaction has actually become the core problem in the LSM tree archit
 
 ![sstable](https://github.com/zhangruiskyline/system/blob/main/images/compaction_1.jpg)
 
--- First approach(no compactions)
+#### First approach(no compactions)
 
 
 The first extreme way (the upper left log scheme) is that no compaction is done at all. All data is written to the Log and then poured into the SStable. This approach, of course, has the lowest update cost and no compaction at all, just write directly to Disk. But once you want to query or update a K/V, it will cost a lot. There is no sort and no old values ​​are removed. You can only check linearly and slowly, so the efficiency is very low, and if there is no compaction, the data will be written along with it. Linear growth, faster Disk will explode.
 
--- Second approach(Always sort)
+#### Second approach(Always sort)
 
 The second extreme way(sorted array scheme at the bottom right) is that every time a new record is written, compaction will be done immediately, and the entire data will always be updated to the latest value and sorted state, so that the query efficiency is the highest, directly according to the index, but every time The entire data need to be adjusted for every write, and sort and update are too expensive. when Write KPS becomes high, the machine cannot support such high load
 
@@ -37,7 +37,33 @@ Therefore, the actual DB of LSM Tree is a compromise between the two schemes. Li
 ## Leveling Compaction
 
 
+Before we dive into leveling compaction, we need to understand one importation term in LSM tree. __Run__. I think the best explaination comes from wiki:
 
+> Each run contains data sorted by the index key. A run can be represented on disk as a single file, or alternatively as a collection of files with non-overlapping key ranges.
+Key points: What conditions need to be met for run? The first sorted, the second non-overlapping key ranges
+	
+In Summray, there should be two most important features in run
+
+1. Sorted
+
+2. non-overlapping key ranges
+
+This [RocksDB introduction](https://github.com/facebook/rocksdb/wiki/Leveled-Compaction) describes the practice of Leveling compaction in great detail. As shown in the figure below, a multi-level SStable is maintained in Disk, and each layer maintains a single Run. 
+
+![leveling1](https://github.com/zhangruiskyline/system/blob/main/images/compaction_1.png)
+
+![leveling2](https://github.com/zhangruiskyline/system/blob/main/images/compaction_2.png)
+
+The level is a sorted run because keys in each SST file are sorted (See Block-based Table Format as an example). To identify a position for a key, we first binary search the start/end key of all files to identify which file possibly contains the key, and then binary search inside the file to locate the exact position. In all, it is a full binary search across all the keys in the level.
+
+Compaction triggers when number of L0 files reaches level0_file_num_compaction_trigger, files of L0 will be merged into L1. Normally we have to pick up all the L0 files because they usually are overlapping:
+
+https://github.com/zhangruiskyline/system/blob/main/images/level_1.png)
+
+After the compaction, it may push the size of L1 to exceed its target:
+
+
+https://github.com/zhangruiskyline/system/blob/main/images/level_2.png)
 
 
 
