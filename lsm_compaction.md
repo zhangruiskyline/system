@@ -1,3 +1,23 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [LSM Tree Compactions: Leveling vs Tiering](#lsm-tree-compactions-leveling-vs-tiering)
+  - [The dilemma in LSM compaction](#the-dilemma-in-lsm-compaction)
+    - [Compactions illustrated](#compactions-illustrated)
+      - [First approach(no compactions)](#first-approachno-compactions)
+      - [Second approach(Always sort)](#second-approachalways-sort)
+  - [Leveling Compaction](#leveling-compaction)
+  - [Size/Tier Compaction](#sizetier-compaction)
+  - [Leveling vs Tier Compaction](#leveling-vs-tier-compaction)
+    - [Amplification](#amplification)
+      - [Write amplification](#write-amplification)
+      - [Read amplification](#read-amplification)
+      - [Size amplification](#size-amplification)
+  - [Last but not least](#last-but-not-least)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # LSM Tree Compactions: Leveling vs Tiering
 
 All the pics below taken from Original Chinese version of this Article from same Author(https://zhuanlan.zhihu.com/p/112574579)
@@ -18,7 +38,7 @@ The advantage of LSM is that sequential writing is much more efficient than rand
 
 How to do compaction has actually become the core problem in the LSM tree architecture, and it is also the core balance of efficiency and cost. In order to facilitate understanding, we can assume the two extremes of compaction,  [This article](https://stratos.seas.harvard.edu/files/stratos/files/dostoevskykv.pdf) has a good explanation (by the way, I strongly recommend you to read this Lab article, very good)
 
-![sstable](https://github.com/zhangruiskyline/system/blob/main/images/compaction_1.jpg)
+![compare_0](https://github.com/zhangruiskyline/system/blob/main/images/compare_0.png)
 
 #### First approach(no compactions)
 
@@ -58,12 +78,75 @@ The level is a sorted run because keys in each SST file are sorted (See Block-ba
 
 Compaction triggers when number of L0 files reaches level0_file_num_compaction_trigger, files of L0 will be merged into L1. Normally we have to pick up all the L0 files because they usually are overlapping:
 
-https://github.com/zhangruiskyline/system/blob/main/images/level_1.png)
+![leveling_l0](https://github.com/zhangruiskyline/system/blob/main/images/level_1.png)
 
 After the compaction, it may push the size of L1 to exceed its target:
 
 
-https://github.com/zhangruiskyline/system/blob/main/images/level_2.png)
+![leveling_l1](https://github.com/zhangruiskyline/system/blob/main/images/level_2.png)
+
+And so on so forth to more levels.
+
+To summarize briefly, the goal of Level compaction is to maintain one data sorted run at each level, so each level can be compacted with the next level, and it is likely to be compacted by the previous level. The advantage of this is that the compaction between levels can be done by multithreading (except memory to level0), which improves efficiency. The default used by RocksDB is Leveling compaction. Below is a illustration how it is done in multi threading
+
+
+![leveling_multithreading](https://github.com/zhangruiskyline/system/blob/main/images/level_3.png)
+
+
+## Size/Tier Compaction
+
+
+In addition to leveling compaction, another common compaction is Size or Tier compaction. How is it done? There is a very classic description in [this article](https://www.scylladb.com/2018/01/17/compaction-series-space-amplification/) as shown below
+
+
+![size_1](https://github.com/zhangruiskyline/system/blob/main/images/size_1.png)
+
+As usual, memtables are periodically flushed to new sstables. These are pretty small, and soon their number grows. As soon as we have enough (by default, 4) of these small sstables, we compact them into one medium sstable. When we have collected enough medium tables, we compact them into one large table. And so on, with compacted sstables growing increasingly large.
+
+We have seen that this compaction method can guarantee that each sstable is sorted, but cannot guarantee that there is only one Run for each layer? why? let's revisit how to define a __run__: a collection of files with non-overlapping key ranges. The right is this none-overlap key range. This level compaction can be guaranteed. Size or Tier compaction can’t (in fact, to be more precise, Tier compaction, the run can be guaranteed on the largest layer). Cassandra defaults to Tier's compaction
+
+## Leveling vs Tier Compaction
+
+we can go back to the [This article](https://stratos.seas.harvard.edu/files/stratos/files/dostoevskykv.pdf). And check the below example 
+
+![compare](https://github.com/zhangruiskyline/system/blob/main/images/compare.png)
+
+* In size/Tier compaction, each sstable, that is, the array in each box is sorted. This is no problem, but in level 2, [1,3,4,7], [2,5,6,8] Can not form a Run, because the key range is overlap. So there is no guarantee that there is only one Run for each level. For example, if I search for 5, then 5 meets the conditions in the two ranges<2,8>,<1,7>, and it is impossible to use Binary search to determine which sstable it is in.
+
+* Leveling compaction, however, can guarantee __Run__.  Note that when level 1 merges to level 2, the data of level 1 and the data of level 2 will be compacted again, forming the only "Run", which can be found faster when searching. Of course the price paid is the need for more frequent compaction.
+
+
+I hope everyone has an understanding of leveling and Tier compaction until now, and you can look at the coordinates in the first picture again. The default RocksDB  Leveling compaction and   default Cassandra Tier compaction are located in different space in curve, and you can have a better understanding why.
+
+
+### Amplification 
+
+Once we have this illustrated idea, we can check some more formal evulation way of this problem. you can refer [this article](http://smalldatum.blogspot.com/2015/11/read-write-space-amplification-b-tree.html) and [this article](http://smalldatum.blogspot.com/2015/11/read-write-space-amplification-pick-2_23.html) also
+
+#### Write amplification
+
+Write amplification means that the same record needs to be written to Disk multiple times. The larger the number, the more Disk writes. (we use Clean up the room example mentioned before, it means takes more times to clean up the room). Obviously leveling requires more frequent non-stop compaction to ensure that each level has only one Run, so its Write Amplifier is larger
+
+#### Read amplification
+
+Read amplification means how many disk reads need to be read for a record. The larger the number, the more Disk Reads (or use the clean room to understand, which means how many times you need to dig through the cabinets to find what you need in the room). Leveling compaction is more frequent than updating compaction each time, ensuring that each level has a unique Run, so Read Amplifier has advantages over Tier compaction. You can refer to the difference between the query "5" in our picture above
+
+#### Size amplification
+
+Space Amplifier means that in order to reach the final ideal state, how much disk space is needed to put the intermediate result of temporary compaction. The larger the number, the more Disk overhead (we use same clean room to understand, which means that more utility rooms are needed to temporarily stack things). 
+
+
+shows the difference between the two very well. Diligent leveling compaction is relatively smaller in space Amplifier
+
+
+## Last but not least
+
+I hope you enjoy this article so far. Last but not least, hope it is the journey for all of us to explore more.  Exactly as my favorite quote:
+
+* Now this is not the end. It is not even the beginning of the end. But it is, perhaps, the end of the beginning. --Winston Churchill
+
+
+
 
 
 
