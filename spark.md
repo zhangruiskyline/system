@@ -37,7 +37,7 @@
     - [DB Connection Pool via TypeSafe Config](#db-connection-pool-via-typesafe-config)
 - [Spark Jobs](#spark-jobs)
   - [Spark DStream(RDD) vs Structure Stream](#spark-dstreamrdd-vs-structure-stream)
-    - [Spark RDD(DStream) Streaming](#spark-rdddstream-streaming)
+    - [Spark DStream(RDD) Streaming](#spark-dstreamrdd-streaming)
     - [Structured Streaming](#structured-streaming)
     - [Distinctions](#distinctions)
       - [Real Streaming](#real-streaming)
@@ -855,7 +855,7 @@ Structured Streaming (introduced with Spark 2.x)
 Let's discuss what these are exactly, what the differences are, and which one is better.
 
 
-### Spark RDD(DStream) Streaming
+### Spark DStream(RDD) Streaming
 
 Spark Streaming is a separate library in Spark to process continuously flowing streaming data. It provides us with the DStream API, which is powered by Spark RDDs. DStreams provide us data divided into chunks as RDDs received from the source of streaming to be processed and, after processing, sends it to the destination. Cool, right?!
 
