@@ -1476,5 +1476,21 @@ https://jaceklaskowski.gitbooks.io/spark-structured-streaming/content/spark-sql-
 https://databricks.com/blog/2017/10/17/arbitrary-stateful-processing-in-apache-sparks-structured-streaming.html
 
 
+![flat_map](https://github.com/zhangruiskyline/system/blob/main/images/flat_map.jpg)
 
+```JAVA
+package org.apache.spark.api.java.function;
+
+import java.io.Serializable;
+import java.util.Iterator;
+import org.apache.spark.annotation.Experimental;
+import org.apache.spark.annotation.InterfaceStability.Evolving;
+import org.apache.spark.sql.streaming.GroupState;
+
+@Experimental
+@Evolving
+public interface FlatMapGroupsWithStateFunction<K, V, S, R> extends Serializable {
+    Iterator<R> call(K var1, Iterator<V> var2, GroupState<S> var3) throws Exception;
+}
+```
 
