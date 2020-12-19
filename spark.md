@@ -1476,7 +1476,7 @@ https://jaceklaskowski.gitbooks.io/spark-structured-streaming/content/spark-sql-
 https://databricks.com/blog/2017/10/17/arbitrary-stateful-processing-in-apache-sparks-structured-streaming.html
 
 
-![flat_map](https://github.com/zhangruiskyline/system/blob/main/images/flat_map.jpg)
+![flat_map](https://github.com/zhangruiskyline/system/blob/main/images/flatmap.jpg)
 
 ```JAVA
 package org.apache.spark.api.java.function;
