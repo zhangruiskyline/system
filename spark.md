@@ -1009,7 +1009,7 @@ abstract public class SparkStreamingJob<I extends BaseEventClass, O extends Obje
 
         JavaStreamingContext jssc = new JavaStreamingContext(jsc, Durations.seconds(getConf("StreamDuration")));
         // The app name will appear in the upper right hand side of Spark Streaming UI
-        tm.applicationName = jsc.appName();
+        String applicationName = jsc.appName();
 
         // use DStream. Get stream generator from Factory pattern
         MyDStreamGen streamGenerator = MyDStreamGenFactory.getStreamGenerator(componentConfig, jobConfig, appConfig);
