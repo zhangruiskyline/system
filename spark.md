@@ -18,6 +18,7 @@
   - [Data output](#data-output)
     - [Client Factory](#client-factory)
     - [Data Sender](#data-sender)
+  - [Broadcast](#broadcast)
   - [Utils](#utils)
     - [Log](#log)
     - [Reflect](#reflect)
@@ -50,6 +51,9 @@
   - [Dstream(RDD) Job](#dstreamrdd-job)
     - [Dstream Generator](#dstream-generator)
     - [Dstream Job](#dstream-job)
+  - [Dstream with State Job](#dstream-with-state-job)
+    - [Word Count via DStream](#word-count-via-dstream)
+    - [Leverage Checkout Point for state management](#leverage-checkout-point-for-state-management)
   - [Structure Stream Job](#structure-stream-job)
     - [StreamingQueryListener](#streamingquerylistener)
       - [onQueryStarted](#onquerystarted)
@@ -387,6 +391,56 @@ protected void send(ProducerRecord<K, V> record) {
 
 2. For Data sender, we should define abstract class and add metrics collection in abstract class
 
+## Broadcast
+
+Used mainly to init loading some data from storage and broadcom for all executor
+
+```JAVA
+//we have interface
+public interface IBroadcastDataLoader<T> extends Serializable {
+    Broadcast<T> createBroadcast() throws Exception;
+}
+```
+
+Example implementation: read file from HDFS a K/V Map and Broadcast
+
+```JAVA
+@Override
+public Broadcast<HashMap<String, String>> createBroadcast() {
+    String hdfsPath = this.hdfsResourcePath;
+    logger.info(hdfsPath + " is hdfsPath");
+
+    String myMapFile = ConfigUtils.getOrDefault(this.componentConfig, myMapFile_CONF_KEY, null);
+    logger.info(myMapFile + " is query product mapping file");
+
+    Path fullFilePath = new Path(hdfsPath, myMapFile);
+
+    StructType keyValueSchema = new StructType().add(COL_KEY, DataTypes.StringType, false)
+            .add(COL_VALUE, DataTypes.StringType, false);
+
+    Dataset<Row> myMapFileDF = getCurrentSparkSession().read()
+            .schema(keyValueSchema)
+            .option("header", "false")
+            .option("delimiter", Constants.TAB_DELIMITER)
+            .option("mode", "PERMISSIVE")
+            .csv(fullFilePath.toString());
+
+    HashMap<String, String> keyValueAsMap = new HashMap(
+            myMapFile.javaRDD()
+                    //.filter(row -> StringUtils.isNumeric(row.getAs(COL_KEY)) && StringUtils.isNumeric(row.getAs(COL_VALUE)))
+                    .mapToPair(row -> {
+                        String key = row.getAs(COL_KEY);
+                        String dkey= new String(Base64.decodeBase64(key),"UTF-8");
+                        String value = row.getAs(COL_VALUE);
+                        return new Tuple2(dkey, value);
+                    }).collectAsMap());
+
+    JavaSparkContext jsc = new JavaSparkContext(getCurrentSparkSession().sparkContext());
+    broadcast = jsc.broadcast(keyValueAsMap);
+
+    return broadcast;
+}
+```
 
 ## Utils
 
@@ -1047,6 +1101,162 @@ abstract public class SparkStreamingJob<I extends BaseEventClass, O extends Obje
     }
 }
 ```
+
+## Dstream with State Job
+
+
+
+https://www.baeldung.com/kafka-spark-data-pipeline
+
+### Word Count via DStream
+
+```JAVA
+JavaPairDStream<String, String> results = messages
+  .mapToPair( 
+      record -> new Tuple2<>(record.key(), record.value())
+  );
+JavaDStream<String> lines = results
+  .map(
+      tuple2 -> tuple2._2()
+  );
+JavaDStream<String> words = lines
+  .flatMap(
+      x -> Arrays.asList(x.split("\\s+")).iterator()
+  );
+JavaPairDStream<String, Integer> wordCounts = words
+  .mapToPair(
+      s -> new Tuple2<>(s, 1)
+  ).reduceByKey(
+      (i1, i2) -> i1 + i2
+    );
+
+//Write to Canssandra
+
+wordCounts.foreachRDD(
+    javaRdd -> {
+      Map<String, Integer> wordCountMap = javaRdd.collectAsMap();
+      for (String key : wordCountMap.keySet()) {
+        List<Word> wordList = Arrays.asList(new Word(key, wordCountMap.get(key)));
+        JavaRDD<Word> rdd = streamingContext.sparkContext().parallelize(wordList);
+        javaFunctions(rdd).writerBuilder(
+          "vocabulary", "words", mapToRow(Word.class)).saveToCassandra();
+      }
+    }
+  );
+```
+
+### Leverage Checkout Point for state management
+
+```
+Class JavaMapWithStateDStream<KeyType,ValueType,StateType,MappedType>
+
+Type Parameters:
+KeyType - Class of the keys
+ValueType - Class of the values
+StateType - Class of the state data
+MappedType - Class of the mapped data
+```
+
+In a stream processing application, it's often useful to retain state between batches of data being processed.
+
+For example, in our previous attempt, we are only able to store the current frequency of the words. What if we want to store the cumulative frequency instead? Spark Streaming makes it possible through a concept called checkpoints.
+
+https://spark.apache.org/docs/2.2.0/streaming-programming-guide.html#checkpointing
+
+Please note that while data checkpointing is useful for stateful processing, it comes with a latency cost. Hence, it's necessary to use this wisely along with an optimal checkpointing interval.
+
+```JAVA
+JavaMapWithStateDStream<String, Integer, Integer, Tuple2<String, Integer>> cumulativeWordCounts = wordCounts
+  .mapWithState(
+    StateSpec.function( 
+        (word, one, state) -> {
+          int sum = one.orElse(0) + (state.exists() ? state.get() : 0);
+          Tuple2<String, Integer> output = new Tuple2<>(word, sum);
+          state.update(sum);
+          return output;
+        }
+      )
+    );
+```
+
+For the Dstream with State job, it can be 
+
+```JAVA
+abstract public class SparkStreamingStatefulJob<I extends BaseItemClass, O extends Object> extends SparkStreamingJob<I, O> {
+
+
+
+    public JavaStreamingContext createJavaStreamingContext(SparkSession ss) throws Exception {
+        JavaStreamingContext jssc = super.createJavaStreamingContext(ss);
+        jssc.checkpoint(jobConfig.getString(STREAMING_CHECKPIOINT));
+        return jssc;
+    }
+
+    public void run(SparkSession ss) throws Exception {
+
+        Function0<JavaStreamingContext> createContextFunc =
+                () -> createJavaStreamingContext(ss);
+        JavaStreamingContext jssc;
+        try {
+            jssc = JavaStreamingContext.getOrCreate(jobConfig.getString(STREAMING_CHECKPIOINT), createContextFunc);
+        } catch (Exception e) {
+            logger.warn("failed to recover spark streaming from checkpoint", e);
+            jssc = createJavaStreamingContext(ss);
+        }
+        // Start the computation
+        jssc.start();
+        jssc.awaitTermination();
+
+    }
+
+    public void processDStream(JavaDStream<I> dStream, SparkSession ss) {
+        if (jobConfig.hasPath(STREAMING_INCOMING_NUM_OF_PARTITIONs)) {
+            dStream = dStream.repartition(jobConfig.getInt(STREAMING_INCOMING_NUM_OF_PARTITIONs));
+        }
+        JavaPairDStream<Object, Object> pairDstream = getPairDstream(dStream);
+        Function3<Object, Optional<Object>, State<Object>, O> mappingFunc = (key, value, state) -> mapWithStateFunc(key, value, state);
+        JavaMapWithStateDStream<Object, Object, Object, O> javaMapWithStateDStream;
+        if (jobConfig.hasPath(STREAMING_STATE_TIMEOUT)) {
+            javaMapWithStateDStream = pairDstream.mapWithState(StateSpec
+                    .function(mappingFunc)
+                    .timeout(Durations.seconds(jobConfig.getLong(STREAMING_STATE_TIMEOUT))));
+        } else {
+            javaMapWithStateDStream = pairDstream.mapWithState(StateSpec
+                    .function(mappingFunc));
+        }
+        javaMapWithStateDStream.filter(Objects::nonNull).foreachRDD(rdd -> {
+            if (!rdd.partitions().isEmpty()) {
+                processRDDAndLogToDriver(rdd, ss);
+            }
+        });
+
+/**
+     * This method need to be override to get the pair dstream to use stateful streaming.
+     * @param dStream
+     * @param <K>
+     * @param <V>
+     * @return
+     */
+    public abstract <K extends Object, V extends Object> JavaPairDStream<K, V> getPairDstream(JavaDStream<I> dStream);
+
+    /**
+     * This method need to be override if using stateful streaming.
+     * @param key The value of each event key
+     * @param value The value of each event value
+     * @param state The state for the key, use state.getOption().getOrElse() to get the state with given default value
+     * @param <K>
+     * @param <V>
+     * @param <S>
+     * @return
+     */
+    public abstract <K extends Object, V extends Object, S extends Object> O mapWithStateFunc(K key, Optional<V> value, State<S> state);
+
+    }
+
+
+}
+```
+
 
 ## Structure Stream Job
 
