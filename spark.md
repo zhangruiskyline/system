@@ -36,7 +36,7 @@
     - [Full TypeSafe Config Example](#full-typesafe-config-example)
     - [DB Connection Pool via TypeSafe Config](#db-connection-pool-via-typesafe-config)
 - [Spark Jobs](#spark-jobs)
-  - [Spark Stream vs Structure Stream](#spark-stream-vs-structure-stream)
+  - [Spark DStream(RDD) vs Structure Stream](#spark-dstreamrdd-vs-structure-stream)
     - [Spark RDD(DStream) Streaming](#spark-rdddstream-streaming)
     - [Structured Streaming](#structured-streaming)
     - [Distinctions](#distinctions)
@@ -843,7 +843,7 @@ public class BaseComponent implements Serializable {
 }
 ```
 
-## Spark Stream vs Structure Stream
+## Spark DStream(RDD) vs Structure Stream
 
 https://dzone.com/articles/spark-streaming-vs-structured-streaming
 
