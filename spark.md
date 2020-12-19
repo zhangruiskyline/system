@@ -1166,6 +1166,8 @@ https://spark.apache.org/docs/2.2.0/streaming-programming-guide.html#checkpointi
 
 Please note that while data checkpointing is useful for stateful processing, it comes with a latency cost. Hence, it's necessary to use this wisely along with an optimal checkpointing interval.
 
+![checkpoint](https://github.com/zhangruiskyline/system/blob/main/images/dstream_checkpoint.jpg)
+
 ```JAVA
 JavaMapWithStateDStream<String, Integer, Integer, Tuple2<String, Integer>> cumulativeWordCounts = wordCounts
   .mapWithState(
@@ -1464,5 +1466,15 @@ public Dataset<T> toDataset(Dataset<Row> dataset) {
         return transformedDataset;
     }
 ```
+
+### Arbitrary Stateful Structure Stream
+
+https://jaceklaskowski.gitbooks.io/spark-structured-streaming/content/spark-sql-streaming-KeyValueGroupedDataset-flatMapGroupsWithState.html
+
+https://jaceklaskowski.gitbooks.io/spark-structured-streaming/content/spark-sql-arbitrary-stateful-streaming-aggregation.html
+
+https://databricks.com/blog/2017/10/17/arbitrary-stateful-processing-in-apache-sparks-structured-streaming.html
+
+
 
 
