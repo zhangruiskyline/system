@@ -1016,7 +1016,7 @@ abstract public class SparkStreamingJob<I extends BaseEventClass, O extends Obje
         if (streamGenerator == null) {
             throw new IllegalArgumentException(String.format("illegal LogFetch class %s provided", tm.streamFetchClass));
         }
-        JavaDStream<I> dStream = streamGenerator.fetchStreams(tm, jssc);
+        JavaDStream<I> dStream = streamGenerator.fetchStreams(jssc);
         processDStream(dStream, ss);
         return jssc;
 
@@ -1203,12 +1203,12 @@ public abstract class SparkStructureStreamingJob extends SparkDataFrameJob {
      * @return
      * @throws Exception
      */
-    public List<NativeAdsSparkStreamingListener> initializeListeners() throws Exception {
-        List<NativeAdsSparkStreamingListener> listeners = new ArrayList<>();
+    public List<MySparkStreamingListener> initializeListeners() throws Exception {
+        List<MySparkStreamingListener> listeners = new ArrayList<>();
         if (jobConfig.hasPath(LISTENER_KEY)) {
             List<String> list = jobConfig.getStringList(LISTENER_KEY);
             for (String listener : list) {
-                NativeAdsSparkStreamingListener streamingQueryListener = ReflectUtils.extractComponent(listener);
+                MySparkStreamingListener streamingQueryListener = ReflectUtils.extractComponent(listener);
                 streamingQueryListener.initialize(jobConfig, appConfig);
                 listeners.add(streamingQueryListener);
             }
