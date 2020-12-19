@@ -54,6 +54,7 @@
   - [Dstream with State Job](#dstream-with-state-job)
     - [Word Count via DStream](#word-count-via-dstream)
     - [Leverage Checkout Point for state management](#leverage-checkout-point-for-state-management)
+      - [DStream with State job Example](#dstream-with-state-job-example)
   - [Structure Stream Job](#structure-stream-job)
     - [StreamingQueryListener](#streamingquerylistener)
       - [onQueryStarted](#onquerystarted)
@@ -1178,6 +1179,8 @@ JavaMapWithStateDStream<String, Integer, Integer, Tuple2<String, Integer>> cumul
       )
     );
 ```
+
+#### DStream with State job Example
 
 For the Dstream with State job, it can be 
 
