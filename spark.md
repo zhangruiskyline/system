@@ -1390,7 +1390,7 @@ Conceptually, Structured Streaming treats all the data arriving as an unbounded 
 * Update: Only the rows that were updated in the result table since the last trigger will be changed in the external storage. This mode works for output sinks that can be updated in place, such as a MySQL table.
 
 
- - Example to check Phone open/close
+##### Example to check Phone open/close
 
 ![structure stream 3](https://github.com/zhangruiskyline/system/blob/main/images/sstream_3.png)
 
