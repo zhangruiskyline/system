@@ -54,8 +54,8 @@
     - [Dstream Job Example](#dstream-job-example)
   - [Dstream with State Job](#dstream-with-state-job)
     - [General Guideline](#general-guideline)
-    - [Word Count via DStream with State Example](#word-count-via-dstream-with-state-example)
-    - [Leverage CheckPoint for state management](#leverage-checkpoint-for-state-management)
+      - [Word Count via DStream with State Example](#word-count-via-dstream-with-state-example)
+    - [CheckPoint for state management](#checkpoint-for-state-management)
     - [General DStream with State job Example](#general-dstream-with-state-job-example)
     - [Limitation](#limitation)
   - [Structure Stream](#structure-stream)
@@ -67,6 +67,7 @@
       - [Arbitrary Stateful Structure Stream](#arbitrary-stateful-structure-stream)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 
 
 # Spark Architecture
@@ -1134,7 +1135,7 @@ where the latter is more or less an improvement (both API and performance wise) 
 3. Partial updates - Only keys which were “touched” in the current micro batch were iterated for update
 4. Return type - You can choose any return type of your choice.
 
-### Word Count via DStream with State Example
+#### Word Count via DStream with State Example
 
 ```JAVA
 JavaPairDStream<String, String> results = messages
@@ -1171,7 +1172,7 @@ wordCounts.foreachRDD(
   );
 ```
 
-### Leverage CheckPoint for state management
+### CheckPoint for state management
 
 ```
 Class JavaMapWithStateDStream<KeyType,ValueType,StateType,MappedType>
@@ -1331,7 +1332,7 @@ https://databricks.com/blog/2016/07/28/structured-streaming-in-apache-spark.html
 
 In Structured Streaming, we tackle the issue of semantics head-on by making a strong guarantee about the system: 
 
-1. At any time, the output of the application is equivalent to executing a batch job on a prefix of the data. Strong guarantees about consistency with batch jobs. Users specify a streaming computation by writing a batch computation (using Spark’s DataFrame/Dataset API), and the engine automatically incrementalizes this computation (runs it continuously). At any point, the output of the Structured Streaming job is the same as running the batch job on a prefix of the input data
+* At any time, the output of the application is equivalent to executing a batch job on a prefix of the data. Strong guarantees about consistency with batch jobs. Users specify a streaming computation by writing a batch computation (using Spark’s DataFrame/Dataset API), and the engine automatically incrementalizes this computation (runs it continuously). At any point, the output of the Structured Streaming job is the same as running the batch job on a prefix of the input data
 
   - Streaming version
 
@@ -1356,11 +1357,11 @@ logsDF.select("user", "url", "date")
       .write.parquet("s3://out")
 ```
 
-2. Output tables are always consistent with all the records in a prefix of the data. 
+* Output tables are always consistent with all the records in a prefix of the data. 
 
-3. Fault tolerance is handled holistically by Structured Streaming, including in interactions with output sinks. This was a major goal in supporting continuous applications. https://databricks.com/blog/2016/07/28/continuous-applications-evolving-streaming-in-apache-spark-2-0.html
+* Fault tolerance is handled holistically by Structured Streaming, including in interactions with output sinks. This was a major goal in supporting continuous applications. https://databricks.com/blog/2016/07/28/continuous-applications-evolving-streaming-in-apache-spark-2-0.html
 
-4. The effect of out-of-order data is clear. We know that the job outputs counts grouped by action and time for a prefix of the stream. If we later receive more data, we might see a time field for an hour in the past, and we will simply update its respective row. Structured Streaming also supports APIs for filtering out overly old data if the user wants. But fundamentally, out-of-order data is not a “special case”: the query says to group by time field, and seeing an old time is no different than seeing a repeated action.
+* The effect of out-of-order data is clear. We know that the job outputs counts grouped by action and time for a prefix of the stream. If we later receive more data, we might see a time field for an hour in the past, and we will simply update its respective row. Structured Streaming also supports APIs for filtering out overly old data if the user wants. But fundamentally, out-of-order data is not a “special case”: the query says to group by time field, and seeing an old time is no different than seeing a repeated action.
 
 
 ### Execution Illustration
