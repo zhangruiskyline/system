@@ -61,7 +61,6 @@
   - [Structure Stream](#structure-stream)
     - [Structure Stream Design](#structure-stream-design)
       - [Structure Stream Job](#structure-stream-job)
-      - [Convert from Dataset<Row> to Dataset<T>](#convert-from-datasetrow-to-datasett)
     - [Stateful Stream Processing via Structure Streaming](#stateful-stream-processing-via-structure-streaming)
       - [Streaming Aggregation](#streaming-aggregation)
       - [Arbitrary Stateful Structure Stream](#arbitrary-stateful-structure-stream)
@@ -1334,7 +1333,7 @@ In Structured Streaming, we tackle the issue of semantics head-on by making a st
 
 * At any time, the output of the application is equivalent to executing a batch job on a prefix of the data. Strong guarantees about consistency with batch jobs. Users specify a streaming computation by writing a batch computation (using Spark’s DataFrame/Dataset API), and the engine automatically incrementalizes this computation (runs it continuously). At any point, the output of the Structured Streaming job is the same as running the batch job on a prefix of the input data
 
-  - Streaming version
+  * Streaming version
 
 ```JAVA
 // Read JSON continuously from S3
@@ -1346,7 +1345,7 @@ logsDF.select("user", "url", "date")
       .start()
 ```
 
- - Batch Version
+  * Batch Version
 
  ```JAVA
 // Read JSON once from S3
@@ -1577,7 +1576,7 @@ abstract public class SparkDataFrameJob extends SparkBaseJob {
 ```
 
 
-#### Convert from Dataset<Row> to Dataset<T>
+* Convert from Dataset<Row> to Dataset<T>
 
 
 ```JAVA
