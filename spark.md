@@ -59,7 +59,6 @@
     - [General DStream with State job Example](#general-dstream-with-state-job-example)
     - [Limitation](#limitation)
   - [Structure Stream](#structure-stream)
-    - [Former DStream Challenge to maintain state](#former-dstream-challenge-to-maintain-state)
     - [Structure Stream Design](#structure-stream-design)
         - [onQueryProgress](#onqueryprogress)
         - [onQueryTerminated](#onqueryterminated)
@@ -1321,7 +1320,7 @@ Here is a great Introduction from Data Bricks
 
 https://databricks.com/blog/2016/07/28/structured-streaming-in-apache-spark.html
 
-### Former DStream Challenge to maintain state
+*  Former DStream Challenge to maintain state
 
 1. Consistency: This distributed design can cause records to be processed in one part of the system before they’re processed in another, leading to nonsensical results. 
 
