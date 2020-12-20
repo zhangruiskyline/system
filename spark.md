@@ -66,6 +66,7 @@
       - [Fault Recovery and Storage System Requirements](#fault-recovery-and-storage-system-requirements)
     - [Structure Stream Programming API and Job](#structure-stream-programming-api-and-job)
       - [Structure Stream Job](#structure-stream-job)
+      - [Example of Counting Job](#example-of-counting-job)
     - [Stateful Stream Processing via Structure Streaming](#stateful-stream-processing-via-structure-streaming)
       - [Streaming Aggregation](#streaming-aggregation)
       - [Arbitrary Stateful Structure Stream](#arbitrary-stateful-structure-stream)
@@ -1582,6 +1583,51 @@ abstract public class SparkDataFrameJob extends SparkBaseJob {
 
     abstract public void write(Dataset<Row> dataset);
  }
+```
+
+#### Example of Counting Job
+
+```JAVA
+@Override
+    public void write(Dataset<Row> dataset) {
+        dataset.printSchema();
+        String outputPath = getConf("output_path");
+        String checkpointPath = getConf("checkpoint_path")
+
+        StructType inputSchema = dataset.schema();
+
+        CountRowFlatMapFunction flatMapFunction = new CountRowFlatMapFunction(countConfig, featureConfig, inputSchema);
+        CountFlatMapGroupsWithStateFunction flatMapGroupsWithStateFunction = new CountFlatMapGroupsWithStateFunction(countConfig, featureConfig, watermark, inputSchema);
+
+        StreamingQuery query = dataset
+                .flatMap(flatMapFunction, RowEncoder.apply(flatMapFunction.getOutputSchema()))
+                .withWatermark(Event_Timestamp, watermark)
+                .groupByKey(new CountKeyMapFunction(countConfig, featureConfig), Encoders.STRING())
+                .flatMapGroupsWithState(flatMapGroupsWithStateFunction,
+                        OutputMode.Update(),
+                        Encoders.kryo(CountGroupState.class),
+                        RowEncoder.apply(CountFlatMapGroupsWithStateFunction.getOutputSchema()),
+                        GroupStateTimeout.EventTimeTimeout()
+                )
+                .withColumn("date", to_date(col(Event_Timestamp)))
+                .withColumn("hour", format_string("%02d", hour(col(Event_Timestamp))))// leading zero in hour
+                .writeStream()
+                .foreachBatch((batchDf, batchId) -> {
+                    batchDf.persist();
+                    //output to external 
+                    }
+                    batchDf.unpersist();
+                })
+                .outputMode("update")// require update mode
+                .option("checkpointLocation", checkpointPath)
+                .trigger(Trigger.ProcessingTime(triggerInterval))
+                .start();
+        try{
+            query.awaitTermination();
+        } catch (Exception e){
+            throw new RuntimeException("Failed to write", e);
+        }
+    }
 ```
 
 
