@@ -1363,7 +1363,7 @@ logsDF.select("user", "url", "date")
 4. The effect of out-of-order data is clear. We know that the job outputs counts grouped by action and time for a prefix of the stream. If we later receive more data, we might see a time field for an hour in the past, and we will simply update its respective row. Structured Streaming also supports APIs for filtering out overly old data if the user wants. But fundamentally, out-of-order data is not a “special case”: the query says to group by time field, and seeing an old time is no different than seeing a repeated action.
 
 
-#### Execution Illustration
+### Execution Illustration
 
 Conceptually, Structured Streaming treats all the data arriving as an unbounded input table. Each new item in the stream is like a row appended to the input table. We won’t actually retain all the input, but our results will be equivalent to having all of it and running a batch job.
 
@@ -1378,7 +1378,7 @@ Conceptually, Structured Streaming treats all the data arriving as an unbounded 
 
 ![structure stream 2](https://github.com/zhangruiskyline/system/blob/main/images/sstream_2.png)
 
-#### Structure Stream output modes
+### Structure Stream output modes
 
 * Append: Only the new rows appended to the result table since the last trigger will be written to the external storage. This is applicable only on queries where existing rows in the result table cannot change (e.g. a map on an input stream).
 
@@ -1387,13 +1387,13 @@ Conceptually, Structured Streaming treats all the data arriving as an unbounded 
 * Update: Only the rows that were updated in the result table since the last trigger will be changed in the external storage. This mode works for output sinks that can be updated in place, such as a MySQL table.
 
 
-##### Example to check Phone open/close
+#### Example to check Phone open/close
 
 ![structure stream 3](https://github.com/zhangruiskyline/system/blob/main/images/sstream_3.png)
 
 At every trigger point, we take the previous grouped counts and update them with new data that arrived since the last trigger to get a new result table. We then emit only the changes required by our output mode to the sink—here, we update the records for (action, hour) pairs that changed during that trigger in MySQL (shown in red).
 
-#### Fault Recovery and Storage System Requirements
+### Fault Recovery and Storage System Requirements
 
 Structured Streaming keeps its results valid even if machines fail. To do this, it places two requirements on the input sources and output sinks:
 
