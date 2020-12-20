@@ -37,6 +37,7 @@
     - [Full TypeSafe Config Example](#full-typesafe-config-example)
     - [DB Connection Pool via TypeSafe Config](#db-connection-pool-via-typesafe-config)
 - [Spark Jobs](#spark-jobs)
+  - [Streaming Programming Guide](#streaming-programming-guide)
   - [Spark DStream(RDD) vs Structure Stream](#spark-dstreamrdd-vs-structure-stream)
     - [Spark DStream(RDD) Streaming](#spark-dstreamrdd-streaming)
     - [Structured Streaming](#structured-streaming)
@@ -50,19 +51,23 @@
       - [Conclusion](#conclusion)
   - [Dstream(RDD) Job](#dstreamrdd-job)
     - [Dstream Generator](#dstream-generator)
-    - [Dstream Job](#dstream-job)
+    - [Dstream Job Example](#dstream-job-example)
   - [Dstream with State Job](#dstream-with-state-job)
-    - [Word Count via DStream](#word-count-via-dstream)
-    - [Leverage Checkout Point for state management](#leverage-checkout-point-for-state-management)
-      - [DStream with State job Example](#dstream-with-state-job-example)
-  - [Structure Stream Job](#structure-stream-job)
-    - [StreamingQueryListener](#streamingquerylistener)
-      - [onQueryStarted](#onquerystarted)
-      - [onQueryProgress](#onqueryprogress)
-      - [onQueryTerminated](#onqueryterminated)
-    - [Base Job](#base-job)
-    - [Structure Stream Job](#structure-stream-job-1)
+    - [General Guideline](#general-guideline)
+    - [Word Count via DStream with State Example](#word-count-via-dstream-with-state-example)
+    - [Leverage CheckPoint for state management](#leverage-checkpoint-for-state-management)
+    - [General DStream with State job Example](#general-dstream-with-state-job-example)
+    - [Limitation](#limitation)
+  - [Structure Stream](#structure-stream)
+    - [Former DStream Challenge to maintain state](#former-dstream-challenge-to-maintain-state)
+    - [Structure Stream Design](#structure-stream-design)
+        - [onQueryProgress](#onqueryprogress)
+        - [onQueryTerminated](#onqueryterminated)
+      - [Structure Stream Job](#structure-stream-job)
       - [Convert from Dataset<Row> to Dataset<T>](#convert-from-datasetrow-to-datasett)
+    - [Stateful Stream Processing via Structure Streaming](#stateful-stream-processing-via-structure-streaming)
+      - [Streaming Aggregation](#streaming-aggregation)
+      - [Arbitrary Stateful Structure Stream](#arbitrary-stateful-structure-stream)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -394,7 +399,8 @@ protected void send(ProducerRecord<K, V> record) {
 
 ## Broadcast
 
-Used mainly to init loading some data from storage and broadcom for all executor
+Broadcast variables allow the programmer to keep a read-only variable cached on each machine rather than shipping a copy of it with tasks. They can be used, for example, to give every node a copy of a large input dataset in an efficient manner. Spark also attempts to distribute broadcast variables using efficient broadcast algorithms to reduce communication cost.
+
 
 ```JAVA
 //we have interface
@@ -898,6 +904,10 @@ public class BaseComponent implements Serializable {
 }
 ```
 
+## Streaming Programming Guide
+
+https://spark.apache.org/docs/latest/streaming-programming-guide.html
+
 ## Spark DStream(RDD) vs Structure Stream
 
 https://dzone.com/articles/spark-streaming-vs-structured-streaming
@@ -1031,7 +1041,7 @@ mydomain.myorg.MyJob {
 }
 ```
 
-### Dstream Job
+### Dstream Job Example
 
 ```JAVA
 abstract public class SparkStreamingJob<I extends BaseEventClass, O extends Object> extends SparkBaseJob<O> {
@@ -1105,11 +1115,29 @@ abstract public class SparkStreamingJob<I extends BaseEventClass, O extends Obje
 
 ## Dstream with State Job
 
-
+https://dzone.com/articles/stateful-streaming-in-spark
 
 https://www.baeldung.com/kafka-spark-data-pipeline
 
-### Word Count via DStream
+
+### General Guideline
+
+https://blog.yuvalitzchakov.com/exploring-stateful-streaming-with-spark-structured-streaming/
+
+If you needed to use stateful streaming with Spark you had to choose between two abstractions (up until Spark 2.2). 
+
+ - updateStateByKey
+
+ - mapWithState 
+
+where the latter is more or less an improvement (both API and performance wise) version of the former (with a bit of different semantics). In order to utilize state between micro batches, you provided a ```StateSpec``` function to ```mapWithState``` which would be invoked per key value pair that arrived in the current micro batch. With ```mapWithState```, the main advantage points are:
+
+1. Initial RDD for state - One can load up an RDD with previously saved state
+2. Timeout - Timeout management was handled by Spark. You can set a single timeout for all key value pairs.
+3. Partial updates - Only keys which were “touched” in the current micro batch were iterated for update
+4. Return type - You can choose any return type of your choice.
+
+### Word Count via DStream with State Example
 
 ```JAVA
 JavaPairDStream<String, String> results = messages
@@ -1146,7 +1174,7 @@ wordCounts.foreachRDD(
   );
 ```
 
-### Leverage Checkout Point for state management
+### Leverage CheckPoint for state management
 
 ```
 Class JavaMapWithStateDStream<KeyType,ValueType,StateType,MappedType>
@@ -1182,7 +1210,7 @@ JavaMapWithStateDStream<String, Integer, Integer, Tuple2<String, Integer>> cumul
     );
 ```
 
-#### DStream with State job Example
+### General DStream with State job Example
 
 For the Dstream with State job, it can be 
 
@@ -1262,18 +1290,137 @@ abstract public class SparkStreamingStatefulJob<I extends BaseItemClass, O exten
 }
 ```
 
+### Limitation
 
-## Structure Stream Job
+```mapWithState``` was a big improvement over the previous ```updateStateByKey``` API. But there are a few caveats I’ve experienced over the last year while using it:
+
+1. Checkpointing
+
+To ensure Spark can recover from failed tasks, it has to checkpoint data to a distributed file system from which it can consume upon failure. When using mapWithState, each executor process is holding a HashMap, in memory, of all the state you’ve accumulated. At every checkpoint, Spark serializes the entire state, each time. If you’re holding a lot of state in memory, this can cause significant processing latencies.
+
+https://stackoverflow.com/questions/36042295/spark-streaming-mapwithstate-seems-to-rebuild-complete-state-periodically/36065778#36065778
+
+If you’re planning on using stateful streaming for *high throughput* you have to consider this as a serious caveat. 
+
+2. Saving state between version updates
+
+If datastucture changed, can not save state any more
+
+3. NO Separate timeout per state object
+
+4. Single executor failure causing data loss
+
+
+
+
+## Structure Stream 
+
+Structured Streaming is a scalable and fault-tolerant stream processing engine built on the Spark SQL engine. You can express your streaming computation the same way you would express a batch computation on static data. The Spark SQL engine will take care of running it incrementally and continuously and updating the final result as streaming data continues to arrive.
+
+Here is a great Introduction from Data Bricks
+
+https://databricks.com/blog/2016/07/28/structured-streaming-in-apache-spark.html
+
+### Former DStream Challenge to maintain state
+
+1. Consistency: This distributed design can cause records to be processed in one part of the system before they’re processed in another, leading to nonsensical results. 
+
+2. Fault tolerance: What happens if one of the mappers or reducers fails? A reducer should not count an action in MySQL twice, but should somehow know how to request old data from the mappers when it comes up. Streaming engines go through a great deal of trouble to provide strong semantics here, at least within the engine. In many engines, however, keeping the result consistent in external storage is left to the user.
+
+3. Out-of-order data: In the real world, data from different sources can come out of order: for example, a phone might upload its data hours late if it’s out of coverage. Just writing the reducer operators to assume data arrives in order of time fields will not work—they need to be prepared to receive out-of-order data, and to update the results in MySQL accordingly.
+
+### Structure Stream Design
+
+
+In Structured Streaming, we tackle the issue of semantics head-on by making a strong guarantee about the system: 
+
+1. At any time, the output of the application is equivalent to executing a batch job on a prefix of the data. Strong guarantees about consistency with batch jobs. Users specify a streaming computation by writing a batch computation (using Spark’s DataFrame/Dataset API), and the engine automatically incrementalizes this computation (runs it continuously). At any point, the output of the Structured Streaming job is the same as running the batch job on a prefix of the input data
+
+  - Streaming version
+
+```JAVA
+// Read JSON continuously from S3
+logsDF = spark.readStream.json("s3://logs")
+
+// Transform with DataFrame API and save
+logsDF.select("user", "url", "date")
+      .writeStream.parquet("s3://out")
+      .start()
+```
+
+ - Batch Version
+
+ ```JAVA
+// Read JSON once from S3
+logsDF = spark.read.json("s3://logs")
+
+// Transform with DataFrame API and save
+logsDF.select("user", "url", "date")
+      .write.parquet("s3://out")
+```
+
+2. Output tables are always consistent with all the records in a prefix of the data. 
+
+3. Fault tolerance is handled holistically by Structured Streaming, including in interactions with output sinks. This was a major goal in supporting continuous applications. https://databricks.com/blog/2016/07/28/continuous-applications-evolving-streaming-in-apache-spark-2-0.html
+
+4. The effect of out-of-order data is clear. We know that the job outputs counts grouped by action and time for a prefix of the stream. If we later receive more data, we might see a time field for an hour in the past, and we will simply update its respective row. Structured Streaming also supports APIs for filtering out overly old data if the user wants. But fundamentally, out-of-order data is not a “special case”: the query says to group by time field, and seeing an old time is no different than seeing a repeated action.
+
+
+#### Execution Illustration
+
+Conceptually, Structured Streaming treats all the data arriving as an unbounded input table. Each new item in the stream is like a row appended to the input table. We won’t actually retain all the input, but our results will be equivalent to having all of it and running a batch job.
+
+![structure stream 1](https://github.com/zhangruiskyline/system/blob/main/images/sstream_1.png)
+
+
+1. The developer then defines a query on this input table, as if it were a static table, to compute a final result table that will be written to an output sink. 
+
+2. Spark automatically converts this batch-like query to a streaming execution plan. This is called *incrementalization*: Spark figures out what state needs to be maintained to update the result each time a record arrives. 
+
+3. Finally, developers specify triggers to control when to update the results. Each time a trigger fires, Spark checks for new data (new row in the input table), and incrementally updates the result.
+
+![structure stream 2](https://github.com/zhangruiskyline/system/blob/main/images/sstream_2.png)
+
+#### Structure Stream output modes
+
+* Append: Only the new rows appended to the result table since the last trigger will be written to the external storage. This is applicable only on queries where existing rows in the result table cannot change (e.g. a map on an input stream).
+
+* Complete: The entire updated result table will be written to external storage.
+
+* Update: Only the rows that were updated in the result table since the last trigger will be changed in the external storage. This mode works for output sinks that can be updated in place, such as a MySQL table.
+
+
+ - Example to check Phone open/close
+
+![structure stream 3](https://github.com/zhangruiskyline/system/blob/main/images/sstream_3.png)
+
+At every trigger point, we take the previous grouped counts and update them with new data that arrived since the last trigger to get a new result table. We then emit only the changes required by our output mode to the sink—here, we update the records for (action, hour) pairs that changed during that trigger in MySQL (shown in red).
+
+#### Fault Recovery and Storage System Requirements
+
+Structured Streaming keeps its results valid even if machines fail. To do this, it places two requirements on the input sources and output sinks:
+
+* Input sources must be replayable, 
+
+so that recent data can be re-read if the job crashes. For example, message buses like Amazon Kinesis and Apache Kafka are replayable, as is the file system input source. Only a few minutes’ worth of data needs to be retained; Structured Streaming will maintain its own internal state after that.
+
+* Output sinks must support transactional updates, 
+
+so that the system can make a set of records appear atomically. The current version of Structured Streaming implements this for file sinks, and we also plan to add it for common databases and key-value stores.
+
+
+### Structure Stream Programming API and Job
+
 
 https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html
 
-### StreamingQueryListener
+#### StreamingQueryListener
 
 https://jaceklaskowski.gitbooks.io/spark-structured-streaming/content/spark-sql-streaming-StreamingQueryListener.html
 
 StreamingQueryListener is the contract of listeners that want to be notified about the life cycle events of streaming queries, i.e. start, progress and termination.
 
-#### onQueryStarted
+##### onQueryStarted
 
 ```JAVA
 onQueryStarted(event: QueryStartedEvent): Unit
@@ -1281,7 +1428,7 @@ onQueryStarted(event: QueryStartedEvent): Unit
 
 Informs that DataStreamWriter was requested to start execution of the streaming query (on the stream execution thread)
 
-#### onQueryProgress
+##### onQueryProgress
 
 ```JAVA
 onQueryProgress(event: QueryProgressEvent): Unit
@@ -1296,45 +1443,14 @@ Example
 Long processedTime = event.progress().durationMs().get("triggerExecution"); // the whole micro-batch processed time
 ```
 
-#### onQueryTerminated
+##### onQueryTerminated
 
 ```JAVA
 onQueryTerminated(event: QueryTerminatedEvent): Unit
 ```
 Informs that a streaming query was stopped or terminated due to an error
 
-
-### Base Job
-
-```JAVA
-abstract public class SparkDataFrameJob extends SparkBaseJob {
-    private static final Logger logger = Logger.getLogger(SparkBaseJob.class.getSimpleName());
-
-    public void initialize(Config jobConfig, Config appConfig) throws Exception {
-        super.initialize(jobConfig, appConfig);
-        initializeProperties();
-    }
-
-    public void initializeProperties() {
-    	//Init
-    }
-
-    @Override
-    public void run(SparkSession ss) throws Exception {
-        Dataset<Row> dataset = read(ss);
-        Dataset<Row> transformedDataset = transform(dataset);
-        write(transformedDataset);
-    }
-
-    abstract public Dataset<Row> transform(Dataset<Row> dataset);
-
-    abstract public Dataset<Row> read(SparkSession ss);
-
-    abstract public void write(Dataset<Row> dataset);
- }
-```
-
-### Structure Stream Job
+#### Structure Stream Job
 
 
 ```JAVA
@@ -1433,6 +1549,36 @@ public abstract class SparkStructureStreamingJob extends SparkDataFrameJob {
 }
 ```
 
+
+```JAVA
+abstract public class SparkDataFrameJob extends SparkBaseJob {
+    private static final Logger logger = Logger.getLogger(SparkBaseJob.class.getSimpleName());
+
+    public void initialize(Config jobConfig, Config appConfig) throws Exception {
+        super.initialize(jobConfig, appConfig);
+        initializeProperties();
+    }
+
+    public void initializeProperties() {
+      //Init
+    }
+
+    @Override
+    public void run(SparkSession ss) throws Exception {
+        Dataset<Row> dataset = read(ss);
+        Dataset<Row> transformedDataset = transform(dataset);
+        write(transformedDataset);
+    }
+
+    abstract public Dataset<Row> transform(Dataset<Row> dataset);
+
+    abstract public Dataset<Row> read(SparkSession ss);
+
+    abstract public void write(Dataset<Row> dataset);
+ }
+```
+
+
 #### Convert from Dataset<Row> to Dataset<T>
 
 
@@ -1467,7 +1613,25 @@ public Dataset<T> toDataset(Dataset<Row> dataset) {
     }
 ```
 
-### Arbitrary Stateful Structure Stream
+### Stateful Stream Processing via Structure Streaming
+
+https://jaceklaskowski.gitbooks.io/spark-structured-streaming/content/spark-sql-streaming-stateful-stream-processing.html
+
+Stateful Stream Processing is a stream processing with state (implicit or explicit). In Spark Structured Streaming, a streaming query is stateful when is one of the following (that makes use of StateStores):
+
+* Streaming Aggregation
+
+* Arbitrary Stateful Streaming Aggregation
+
+* Stream-Stream Join
+
+* Streaming Deduplication
+
+* Streaming Limit
+
+#### Streaming Aggregation
+
+#### Arbitrary Stateful Structure Stream
 
 https://jaceklaskowski.gitbooks.io/spark-structured-streaming/content/spark-sql-streaming-KeyValueGroupedDataset-flatMapGroupsWithState.html
 
