@@ -60,8 +60,6 @@
     - [Limitation](#limitation)
   - [Structure Stream](#structure-stream)
     - [Structure Stream Design](#structure-stream-design)
-        - [onQueryProgress](#onqueryprogress)
-        - [onQueryTerminated](#onqueryterminated)
       - [Structure Stream Job](#structure-stream-job)
       - [Convert from Dataset<Row> to Dataset<T>](#convert-from-datasetrow-to-datasett)
     - [Stateful Stream Processing via Structure Streaming](#stateful-stream-processing-via-structure-streaming)
@@ -1413,13 +1411,13 @@ so that the system can make a set of records appear atomically. The current vers
 
 https://spark.apache.org/docs/latest/structured-streaming-programming-guide.html
 
-#### StreamingQueryListener
+- StreamingQueryListener
 
 https://jaceklaskowski.gitbooks.io/spark-structured-streaming/content/spark-sql-streaming-StreamingQueryListener.html
 
 StreamingQueryListener is the contract of listeners that want to be notified about the life cycle events of streaming queries, i.e. start, progress and termination.
 
-##### onQueryStarted
+* onQueryStarted
 
 ```JAVA
 onQueryStarted(event: QueryStartedEvent): Unit
@@ -1427,7 +1425,7 @@ onQueryStarted(event: QueryStartedEvent): Unit
 
 Informs that DataStreamWriter was requested to start execution of the streaming query (on the stream execution thread)
 
-##### onQueryProgress
+* onQueryProgress
 
 ```JAVA
 onQueryProgress(event: QueryProgressEvent): Unit
@@ -1442,7 +1440,7 @@ Example
 Long processedTime = event.progress().durationMs().get("triggerExecution"); // the whole micro-batch processed time
 ```
 
-##### onQueryTerminated
+* onQueryTerminated
 
 ```JAVA
 onQueryTerminated(event: QueryTerminatedEvent): Unit
