@@ -36,7 +36,7 @@
       - [Duration/Memory/List/Boolean Helper](#durationmemorylistboolean-helper)
     - [Full TypeSafe Config Example](#full-typesafe-config-example)
     - [DB Connection Pool via TypeSafe Config](#db-connection-pool-via-typesafe-config)
-- [Spark Jobs](#spark-jobs)
+- [Spark Streaming](#spark-streaming)
   - [Streaming Programming Guide](#streaming-programming-guide)
   - [Spark DStream(RDD) vs Structure Stream](#spark-dstreamrdd-vs-structure-stream)
     - [Spark DStream(RDD) Streaming](#spark-dstreamrdd-streaming)
@@ -60,6 +60,11 @@
     - [Limitation](#limitation)
   - [Structure Stream](#structure-stream)
     - [Structure Stream Design](#structure-stream-design)
+      - [Execution Illustration](#execution-illustration)
+      - [Structure Stream output modes](#structure-stream-output-modes)
+        - [Example to check Phone open/close](#example-to-check-phone-openclose)
+      - [Fault Recovery and Storage System Requirements](#fault-recovery-and-storage-system-requirements)
+    - [Structure Stream Programming API and Job](#structure-stream-programming-api-and-job)
       - [Structure Stream Job](#structure-stream-job)
     - [Stateful Stream Processing via Structure Streaming](#stateful-stream-processing-via-structure-streaming)
       - [Streaming Aggregation](#streaming-aggregation)
@@ -891,7 +896,7 @@ public class ConnectionPools {
 }
 ```
 
-# Spark Jobs
+# Spark Streaming
 
 All jobs compoenent needs to be serializable, so that they can be transfered from Master to executor
 
@@ -1328,12 +1333,11 @@ https://databricks.com/blog/2016/07/28/structured-streaming-in-apache-spark.html
 
 ### Structure Stream Design
 
-
 In Structured Streaming, we tackle the issue of semantics head-on by making a strong guarantee about the system: 
 
 * At any time, the output of the application is equivalent to executing a batch job on a prefix of the data. Strong guarantees about consistency with batch jobs. Users specify a streaming computation by writing a batch computation (using Spark’s DataFrame/Dataset API), and the engine automatically incrementalizes this computation (runs it continuously). At any point, the output of the Structured Streaming job is the same as running the batch job on a prefix of the input data
 
-  * Streaming version
+- Streaming version
 
 ```JAVA
 // Read JSON continuously from S3
@@ -1345,9 +1349,9 @@ logsDF.select("user", "url", "date")
       .start()
 ```
 
-  * Batch Version
+- Batch Version
 
- ```JAVA
+```JAVA
 // Read JSON once from S3
 logsDF = spark.read.json("s3://logs")
 
@@ -1358,12 +1362,17 @@ logsDF.select("user", "url", "date")
 
 * Output tables are always consistent with all the records in a prefix of the data. 
 
-* Fault tolerance is handled holistically by Structured Streaming, including in interactions with output sinks. This was a major goal in supporting continuous applications. https://databricks.com/blog/2016/07/28/continuous-applications-evolving-streaming-in-apache-spark-2-0.html
+* Fault tolerance is handled holistically by Structured Streaming, including in interactions with output sinks. 
 
-* The effect of out-of-order data is clear. We know that the job outputs counts grouped by action and time for a prefix of the stream. If we later receive more data, we might see a time field for an hour in the past, and we will simply update its respective row. Structured Streaming also supports APIs for filtering out overly old data if the user wants. But fundamentally, out-of-order data is not a “special case”: the query says to group by time field, and seeing an old time is no different than seeing a repeated action.
+This was a major goal in supporting continuous applications. https://databricks.com/blog/2016/07/28/continuous-applications-evolving-streaming-in-apache-spark-2-0.html
+
+* The effect of out-of-order data is clear. 
+
+We know that the job outputs counts grouped by action and time for a prefix of the stream. If we later receive more data, we might see a time field for an hour in the past, and we will simply update its respective row. Structured Streaming also supports APIs for filtering out overly old data if the user wants. But fundamentally, out-of-order data is not a “special case”: the query says to group by time field, and seeing an old time is no different than seeing a repeated action.
 
 
-### Execution Illustration
+
+#### Execution Illustration
 
 Conceptually, Structured Streaming treats all the data arriving as an unbounded input table. Each new item in the stream is like a row appended to the input table. We won’t actually retain all the input, but our results will be equivalent to having all of it and running a batch job.
 
@@ -1378,7 +1387,7 @@ Conceptually, Structured Streaming treats all the data arriving as an unbounded 
 
 ![structure stream 2](https://github.com/zhangruiskyline/system/blob/main/images/sstream_2.png)
 
-### Structure Stream output modes
+#### Structure Stream output modes
 
 * Append: Only the new rows appended to the result table since the last trigger will be written to the external storage. This is applicable only on queries where existing rows in the result table cannot change (e.g. a map on an input stream).
 
@@ -1387,13 +1396,13 @@ Conceptually, Structured Streaming treats all the data arriving as an unbounded 
 * Update: Only the rows that were updated in the result table since the last trigger will be changed in the external storage. This mode works for output sinks that can be updated in place, such as a MySQL table.
 
 
-#### Example to check Phone open/close
+##### Example to check Phone open/close
 
 ![structure stream 3](https://github.com/zhangruiskyline/system/blob/main/images/sstream_3.png)
 
 At every trigger point, we take the previous grouped counts and update them with new data that arrived since the last trigger to get a new result table. We then emit only the changes required by our output mode to the sink—here, we update the records for (action, hour) pairs that changed during that trigger in MySQL (shown in red).
 
-### Fault Recovery and Storage System Requirements
+#### Fault Recovery and Storage System Requirements
 
 Structured Streaming keeps its results valid even if machines fail. To do this, it places two requirements on the input sources and output sinks:
 
