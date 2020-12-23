@@ -208,6 +208,8 @@ public JavaDStream<T> fetchStreams(Config myConfig, JavaStreamingContext jssc) {
 
 https://spark.apache.org/docs/1.3.1/streaming-kafka-integration.html
 
+Leverage function ```KafkaUtil.createDirectStream```
+
 ```JAVA
 import java.util.*;
 import org.apache.spark.SparkConf;
