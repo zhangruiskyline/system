@@ -9,7 +9,7 @@
     - [Batch Data and Compression](#batch-data-and-compression)
     - [Horizontally Scaling:](#horizontally-scaling)
     - [Log Compaction](#log-compaction)
-- [State in Streaming](#state-in-streaming)
+- [States Management in Streaming](#states-management-in-streaming)
   - [Stateful vs Stateless](#stateful-vs-stateless)
     - [Join example](#join-example)
   - [Manage States](#manage-states)
@@ -23,7 +23,7 @@
     - [Table-table join](#table-table-join)
     - [Table-stream join](#table-stream-join)
     - [Stream-stream join](#stream-stream-join)
-  - [Industrial Application with KV store](#industrial-application-with-kv-store)
+  - [Industrial Application with local KV store](#industrial-application-with-local-kv-store)
     - [Samza](#samza)
     - [Flink](#flink)
     - [Kafka](#kafka-1)
@@ -91,7 +91,7 @@ https://medium.com/swlh/introduction-to-topic-log-compaction-in-apache-kafka-3e4
 
 ![log_compaction](https://github.com/zhangruiskyline/system/blob/main/images/log_compaction.png)
 
-# State in Streaming
+# States Management in Streaming
 
 https://www.oreilly.com/content/why-local-state-is-a-fundamental-primitive-in-stream-processing/
 
@@ -221,7 +221,7 @@ In this example we assume that each impression of an ad has a unique identifier,
 
 Implementation: Partition the ad click and ad impression streams by the impression ID or user ID (assuming that two events with the same impression ID always have the same user ID). The task keeps two stores, one containing click events and one containing impression events, using the impression ID as key for both stores. When the job receives a click event, it looks for the corresponding impression in the impression store, and vice versa. If a match is found, the joined pair is emitted and the entry is deleted. If no match is found, the event is written to the appropriate store. Periodically the job scans over both stores and deletes any old events that were not matched within the time window of the join.
 
-## Industrial Application with KV store
+## Industrial Application with local KV store
 
 ### Samza
 
