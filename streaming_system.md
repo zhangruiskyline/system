@@ -114,7 +114,7 @@ A common pattern is for the stream processing job to take input records from its
 
 As you can see, the input stream is partitioned over multiple processors, each of which query a remote database. And, of course, since this is a distributed database, it is itself partitioning over multiple machines. 
 
-![stateful_remote](https://github.com/zhangruiskyline/system/blob/main/images/stateful_remote.png)
+![stateful_remote](https://github.com/zhangruiskyline/system/blob/main/images/stateful_remote.jpg)
 
 * One possibility is to *co-partition* the database and the input processing, and then move the data to be directly co-located with the processing. That is what I am calling “local state,” which I will describe next.
 
@@ -125,7 +125,7 @@ Local state is just data that is kept in memory or on disk on the machines doing
 
 As the job modifies its local store, it logs out these changes to a Kafka topic. This Kafka topic can be used to replay the changes and restore the local state if the machine fails and the process needs to be restarted on a new host. The log is periodically compacted by removing duplicate updates for the same key to keep the log from growing too large. This facility allows high-throughput updates as the changelog is just another Kafka topic and has the same write-performance Kafka does. Reads are equally high performance, as data is stored locally in memory or on disk.
 
-![stateful_local](https://github.com/zhangruiskyline/system/blob/main/images/stateful_local.png)
+![stateful_local](https://github.com/zhangruiskyline/system/blob/main/images/stateful_local.jpg)
 
 The more state you have, the longer the restore time will be, but keeping, say, a few GBs per process is very practical and still reasonably quick to restore. Since you can horizontally scale the number of processes across a shared cluster, this means you can horizontally scale the total state the job is maintaining.
 
@@ -158,7 +158,7 @@ When the stream processing job gets a user account database update, it pulls out
 In fact, it often happens that all the processing is against database change streams coming from different databases. The stream processor acts as a kind of fancy cross-database trigger mechanism to process changes, usually to create some materialized view to be used for serving live queries:
 
 
-![database_stream](https://github.com/zhangruiskyline/system/blob/main/images/database_stream.png)
+![database_stream](https://github.com/zhangruiskyline/system/blob/main/images/database_stream.jpg)
 
 ### Local Store Pros and Cons
 
