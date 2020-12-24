@@ -87,6 +87,10 @@ Kafka has an ability to have thousands of partitions for a single topic spread a
 
 ### Log Compaction
 
+https://medium.com/swlh/introduction-to-topic-log-compaction-in-apache-kafka-3e4d4afd2262
+
+![log_compaction](https://github.com/zhangruiskyline/system/blob/main/images/log_compaction.png)
+
 # State in Streaming
 
 https://www.oreilly.com/content/why-local-state-is-a-fundamental-primitive-in-stream-processing/
