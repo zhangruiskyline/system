@@ -26,6 +26,7 @@
   - [Industrial Application with KV store](#industrial-application-with-kv-store)
     - [Samza](#samza)
     - [Flink](#flink)
+    - [Kafka](#kafka-1)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -222,7 +223,24 @@ Implementation: Partition the ad click and ad impression streams by the impressi
 
 http://samza.incubator.apache.org/learn/documentation/0.7.0/container/state-management.html
 
+LinkedIn talks about using RocksDB for local store in Samza to store upto 1.5 TB data in a single node.
+
+https://www.youtube.com/watch?v=Rrr_dy-Uauc
+
+![samza_state](https://github.com/zhangruiskyline/system/blob/main/images/samza_state.png)
+
 ### Flink
 
+Jamie Grier, the Flink guy talks in this video to use rocksDB to use as local store to use db as source of streams.
+
+https://www.youtube.com/watch?v=uuv-lnOrD0o
+
+![flink_state](https://github.com/zhangruiskyline/system/blob/main/images/flink_state.png)
+
+### Kafka
+
+The Confluent Kafka Streams says about using RocksDB as local store for saving state for tasks : http://docs.confluent.io/3.0.0/streams/architecture.html#state
+
+![kafka_state](https://github.com/zhangruiskyline/system/blob/main/images/kafka_state.png)
 
 
