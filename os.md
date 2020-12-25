@@ -27,6 +27,7 @@
       - [Buddy system algorithm](#buddy-system-algorithm)
     - [Slab: Page frame management](#slab-page-frame-management)
       - [Slab Algorithm](#slab-algorithm)
+    - [Summary](#summary)
   - [OtherCommon Memory Management Schemes](#othercommon-memory-management-schemes)
     - [Pre-allocation](#pre-allocation)
     - [Reference counter](#reference-counter)
@@ -429,6 +430,15 @@ The buddy algorithm is fine for dealing with relatively large memory requests, b
     - To release objects from these general caches, use ```kfree(objp)```
 
 ![slab](https://github.com/zhangruiskyline/system/blob/main/images/slab.png)
+
+
+### Summary
+
+Kernel functions get dynamic memory in one of three ways
+* ```__get_free_pages()``` to get pages from the buddy system
+* ```– kmem_cache_alloc()``` or ```kmalloc()``` to use slab allocator to get specialized or general objects
+* ```– vmalloc()``` to get noncontiguous memory areas
+
 
 
 
